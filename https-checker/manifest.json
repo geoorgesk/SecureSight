@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "HTTPS Certificate Checker",
+  "version": "1.0",
+  "description": "Checks if the site's HTTPS certificate is valid, expired, or untrusted.",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/gray.png",
+      "48": "icons/gray.png",
+      "128": "icons/gray.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
