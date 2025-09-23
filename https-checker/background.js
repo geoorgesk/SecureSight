@@ -1,4 +1,6 @@
 // background.js
+console.log("Security API available:",
+    !!(chrome.security && chrome.security.getCertificate));
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "checkCert") {
