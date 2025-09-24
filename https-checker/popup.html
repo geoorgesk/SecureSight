@@ -2,15 +2,34 @@
 <html>
   <head>
     <style>
-      body { font-family: Arial; width: 200px; }
+      body {
+        font-family: Arial, sans-serif;
+        width: 250px;
+        padding: 10px;
+        background: #f9fafb;
+      }
+      h2 {
+        font-size: 16px;
+        margin-bottom: 10px;
+        text-align: center;
+        color: #333;
+      }
+      .status-box {
+        background: #fff;
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        font-size: 14px;
+        white-space: pre-line; /* keeps newlines */
+      }
+      .good { color: green; font-weight: bold; }
+      .bad { color: red; font-weight: bold; }
+      .warn { color: orange; font-weight: bold; }
     </style>
   </head>
   <body>
-    <h4>HTTPS Certificate Checker</h4>
-    <div id="status">Checking...</div>
+    <h2>HTTPS Checker</h2>
+    <div id="status" class="status-box">Checking...</div>
     <script src="popup.js"></script>
-    <p id="status"></p>
-<p id="weak-hash"></p>   <!-- NEW line -->
-
   </body>
 </html>

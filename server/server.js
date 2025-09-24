@@ -1,12 +1,10 @@
-// server/server.js
 const express = require("express");
 const tls = require("tls");
-const url = require("url");
 
 const app = express();
 const PORT = 3000;
 
-// Allow extension to call this server (simple CORS)
+// Allow the Chrome extension to call this API
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   next();
@@ -27,34 +25,63 @@ app.get("/check", (req, res) => {
   }
 
   const options = {
-    host: host,
+    host,
     port: 443,
-    servername: host
+    servername: host,
+    rejectUnauthorized: false, // we want to inspect even bad/expired certs
   };
 
   const socket = tls.connect(options, () => {
-    const cert = socket.getPeerCertificate(true); // keep true
-console.log(cert); // <— TEMP: see what fields you actually get
+    const cert = socket.getPeerCertificate(true); // full chain
 
-    if (!cert || !cert.raw) {
+    if (!cert || !Object.keys(cert).length) {
       res.json({ error: "No certificate found" });
       socket.end();
       return;
     }
 
-    // signatureAlgorithm might look like 'sha256WithRSAEncryption'
-    const sigAlgo = cert.signatureAlgorithm || "Unknown";
+    // ------------------ 1) Expiration ------------------
+    const now = new Date();
+    const validTo = new Date(cert.valid_to);
+    const isExpired = now > validTo;
 
-    let isWeak = false;
-    if (/sha1/i.test(sigAlgo) || /md5/i.test(sigAlgo)) {
-      isWeak = true;
+    // ------------------ 2) Self-signed ------------------
+    const isSelfSigned =
+      cert.issuerCertificate &&
+      cert.issuerCertificate.subject &&
+      cert.subject &&
+      cert.issuerCertificate.subject.CN === cert.subject.CN;
+
+    // ------------------ 3) Weak key length ---------------
+    // Some Node versions expose pubkey.bitSize. If not, estimate from modulus.
+    let keySize = null;
+    if (cert.pubkey && cert.pubkey.bitSize) {
+      keySize = cert.pubkey.bitSize;
+    } else if (cert.modulus) {
+      keySize = cert.modulus.length * 4; // hex chars * 4 = bits
     }
+    const weakKey = keySize && keySize < 2048;
+
+    // ------------------ 4) Hostname mismatch -------------
+    const altNames = (cert.subjectaltname || "").toLowerCase();
+    const hostnameMismatch = !altNames.includes(host.toLowerCase());
+
+    // ------------------ 5) Signature Algorithm -----------
+    const sigAlgo = cert.signatureAlgorithm || "Unknown";
+    const weakHash = /sha1|md5/i.test(sigAlgo);
 
     res.json({
       host,
+      validTo: validTo.toISOString(),
+      isExpired,
+      isSelfSigned,
+      keySize,
+      weakKey,
+      hostnameMismatch,
       signatureAlgorithm: sigAlgo,
-      weak: isWeak
+      weakHash
     });
+
     socket.end();
   });
 

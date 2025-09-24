@@ -1,6 +1,3 @@
-// popup.js
-
-// When popup loads, check the active tab's certificate
 document.addEventListener("DOMContentLoaded", () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs.length === 0) {
@@ -10,42 +7,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const tab = tabs[0];
 
-    // Only check if it's HTTPS
-    if (tab.url.startsWith("https://")) {// --- NEW: call Node server for weak hashing check ---
-fetch(`http://localhost:3000/check?site=${encodeURIComponent(tab.url)}`)
-  .then(res => res.json())
-  .then(data => {
-    const extra = document.getElementById("weak-hash");
-    if (data.error) {
-      extra.textContent = "Hash check error: " + data.error;
-    } else if (data.weak) {
-      extra.textContent = "⚠️ Weak hash algorithm: " + data.signatureAlgorithm;
-    } else {
-      extra.textContent = "✅ Strong hash algorithm: " + data.signatureAlgorithm;
+    if (!tab.url.startsWith("https://")) {
+      document.getElementById("status").innerHTML =
+        `<span class="bad">❌ This site is not using HTTPS.</span>`;
+      return;
     }
-  })
-  .catch(err => {
-    document.getElementById("weak-hash").textContent =
-      "Could not contact Node server: " + err.message;
-  });
 
-      chrome.runtime.sendMessage(
-        { action: "checkCert", url: tab.url },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            document.getElementById("status").innerText =
-              "Error: " + chrome.runtime.lastError.message;
-          } else if (response && response.status) {
-            document.getElementById("status").innerText = response.status;
-          } else {
-            document.getElementById("status").innerText =
-              "No certificate info available.";
-          }
+    fetch(`http://localhost:3000/check?site=${encodeURIComponent(tab.url)}`)
+      .then(res => res.json())
+      .then(data => {
+        const box = document.getElementById("status");
+
+        if (data.error) {
+          box.innerHTML = `<span class="bad">Error: ${data.error}</span>`;
+          return;
         }
-      );
-    } else {
-      document.getElementById("status").innerText =
-        "This site is not using HTTPS.";
-    }
+
+        let msg = "";
+
+        msg += data.isExpired
+          ? `<div class="bad"> Certificate expired</div>`
+          : `<div class="good"> Not expired</div>`;
+
+        msg += data.isSelfSigned
+          ? `<div class="warn"> Self-signed certificate</div>`
+          : `<div class="good"> Not self-signed</div>`;
+
+        if (data.keySize) {
+          msg += data.weakKey
+            ? `<div class="warn"> Weak key (${data.keySize} bits)</div>`
+            : `<div class="good">Key size: ${data.keySize} bits</div>`;
+        } else {
+          msg += `<div class="warn"> Could not determine key size</div>`;
+        }
+
+        msg += data.hostnameMismatch
+          ? `<div class="bad"> Hostname mismatch</div>`
+          : `<div class="good"> Hostname matches</div>`;
+
+        msg += data.weakHash
+          ? `<div class="warn"> Weak hash algorithm: ${data.signatureAlgorithm}</div>`
+          : `<div class="good"> Strong hash algorithm: ${data.signatureAlgorithm}</div>`;
+
+        box.innerHTML = msg;
+      })
+      .catch(err => {
+        document.getElementById("status").innerHTML =
+          `<span class="bad">Could not contact Node server: ${err.message}</span>`;
+      });
   });
 });
